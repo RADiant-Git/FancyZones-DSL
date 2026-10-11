@@ -6,7 +6,7 @@
   "Author": "RADiant",
   "Version": "1.2.0",
   "Language": "python",
-  "Website": "https://github.com/RADiant-Git/FancyZonesControl",
+  "Website": "https://github.com/RADiant-Git/FancyZones-DSL",
   "ExecuteFileName": "main.py",
   "IcoPath": "Images/app.png"
 }
