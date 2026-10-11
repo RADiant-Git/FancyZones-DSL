@@ -1,7 +1,7 @@
 import os
 import sys
 
-# Подключаем lib в sys.path для встроенной библиотеки FlowLauncher
+# Добавляем пути к текущей директории и lib для встроенных зависимостей
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(current_dir)
 lib_dir = os.path.join(current_dir, "lib")
@@ -23,27 +23,28 @@ class FancyZonesPlugin(FlowLauncher):
         results = []
         q = query_str.strip()
 
-        # 1. Если ввод пустой — показываем сохраненные макеты
+        # 1. Если ввод пустой — показываем список всех сохраненных макетов
         if not q:
             return self._get_existing_layouts_results("")
 
         # 2. Проверяем, является ли ввод выражением для компиляции
         first_token = q.split()[0]
-        is_dsl = any(c in q for c in ["+", "/", "|", ";"]) or (
+        is_dsl = any(c in q for c in ["+", "/", "|", ";", ">"]) or (
             first_token.replace("x", "").isdigit()
         )
 
         if is_dsl:
-            parsed, parse_err = FZCompiler.parse_command(q)
+            # Передаем self.backend для поиска слоев в операторе '>'
+            parsed, parse_err = FZCompiler.parse_command(q, self.backend)
             if not parse_err and parsed:
-                layout, compile_err = FZCompiler.compile(parsed)
+                layout, compile_err = FZCompiler.compile(parsed, self.backend)
 
                 if compile_err:
                     results.append(
                         {
                             "Title": "Ошибка синтаксиса сетки",
                             "SubTitle": compile_err,
-                            "IcoPath": "Images/icon.png",
+                            "IcoPath": "Images/app.png",
                         }
                     )
                 else:
@@ -68,7 +69,7 @@ class FancyZonesPlugin(FlowLauncher):
                         {
                             "Title": title,
                             "SubTitle": " | ".join(sub_info),
-                            "IcoPath": "Images/icon.png",
+                            "IcoPath": "Images/app.png",
                             "JsonRPCAction": {
                                 "method": "create_and_apply",
                                 "parameters": [
@@ -89,8 +90,8 @@ class FancyZonesPlugin(FlowLauncher):
             results.append(
                 {
                     "Title": "FancyZones DSL",
-                    "SubTitle": "Синтаксис: 1+2+1, 1(2)+2, {3:1}(2)+1, 2x2, A B | A C",
-                    "IcoPath": "Images/icon.png",
+                    "SubTitle": "Примеры: 1+2+1, {1:0:1}+1, 1+0(5)+1, LayerA > LayerB, 2x2, A B | A C",
+                    "IcoPath": "Images/app.png",
                 }
             )
 
@@ -111,7 +112,7 @@ class FancyZonesPlugin(FlowLauncher):
                     {
                         "Title": name,
                         "SubTitle": f"Тип: {l_type} | Enter: применить",
-                        "IcoPath": "Images/icon.png",
+                        "IcoPath": "Images/app.png",
                         "JsonRPCAction": {
                             "method": "apply_layout",
                             "parameters": [uuid_str],
@@ -127,7 +128,7 @@ class FancyZonesPlugin(FlowLauncher):
             {
                 "Title": "Удалить макет",
                 "SubTitle": f"Удалить ({uuid_str}) из PowerToys",
-                "IcoPath": "Images/icon.png",
+                "IcoPath": "Images/app.png",
                 "JsonRPCAction": {
                     "method": "delete_layout",
                     "parameters": [uuid_str],

@@ -17,7 +17,7 @@ class FZBackend:
         self.cli_path = self._find_cli()
 
     def _find_cli(self) -> Optional[str]:
-        """Ищет FancyZonesCLI.exe в PATH и по путям установки PowerToys."""
+        """Ищет FancyZonesCLI.exe в PATH и по стандартным путям PowerToys."""
         in_path = shutil.which("FancyZonesCLI.exe")
         if in_path:
             return in_path
@@ -45,7 +45,7 @@ class FZBackend:
         return None
 
     def get_custom_layouts(self) -> List[Dict[str, Any]]:
-        """Возвращает список пользовательских макетов."""
+        """Возвращает список сохраненных пользовательских макетов."""
         if not os.path.exists(self.custom_layouts_path):
             return []
         try:
@@ -55,12 +55,16 @@ class FZBackend:
         except Exception:
             return []
 
-    def save_layout(self, layout: Dict[str, Any]) -> bool:
-        """Сохраняет макет.
+    def get_layout_by_name(self, name: str) -> Optional[Dict[str, Any]]:
+        """Ищет макет по имени (без учета регистра)."""
+        target = name.strip().lower()
+        for l in self.get_custom_layouts():
+            if l.get("name", "").strip().lower() == target:
+                return l
+        return None
 
-        Если макет с таким именем или UUID уже есть — бесшовно перезаписывает
-        его.
-        """
+    def save_layout(self, layout: Dict[str, Any]) -> bool:
+        """Сохраняет макет. Перезаписывает макеты с идентичным именем или UUID."""
         os.makedirs(self.fz_dir, exist_ok=True)
         data = {"custom-layouts": []}
 
@@ -74,7 +78,6 @@ class FZBackend:
         clean_layout = {k: v for k, v in layout.items() if k != "summary"}
 
         layouts = data.setdefault("custom-layouts", [])
-        # Удаляем старые записи с аналогичным именем или UUID (гарантирует перезапись Temp)
         layouts = [
             l
             for l in layouts
@@ -92,7 +95,7 @@ class FZBackend:
             return False
 
     def delete_layout(self, uuid_str: str) -> bool:
-        """Удаляет макет по его UUID."""
+        """Удаляет макет по UUID."""
         if not os.path.exists(self.custom_layouts_path):
             return False
         try:
