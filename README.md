@@ -46,7 +46,7 @@
 1. Склонируйте репозиторий в каталог плагинов Flow Launcher:
    ```cmd
    cd "%APPDATA%\FlowLauncher\Plugins"
-   git clone https://github.com/your-username/FansyZonesControl.git FancyZonesDSL
+   git clone https://github.com/RADiant-Git/FancyZones-DSL.git FancyZonesDSL
    ```
 2. Установите зависимости (если они не подтянулись автоматически):
    ```cmd
