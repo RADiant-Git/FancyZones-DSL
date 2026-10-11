@@ -1,0 +1,12 @@
+{
+  "ID": "E9A1F3C4-7B2A-4D35-9C8E-2B6A1A78B091",
+  "ActionKeyword": "fz",
+  "Name": "FancyZones DSL",
+  "Description": "Создание и переключение макетов FancyZones через формулы DSL",
+  "Author": "Developer",
+  "Version": "1.1.0",
+  "Language": "python",
+  "Website": "https://github.com",
+  "ExecuteFileName": "main.py",
+  "IcoPath": "Images/app.png"
+}
