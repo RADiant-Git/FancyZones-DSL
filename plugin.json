@@ -1,10 +1,11 @@
 {
+  "$schema": "https://www.flowlauncher.com/schemas/plugin.schema.json",
   "ID": "E9A1F3C4-7B2A-4D35-9C8E-2B6A1A78B091",
   "ActionKeyword": "fz",
   "Name": "FancyZones DSL Tiler",
   "Description": "Fast keyboard-driven tiling for PowerToys FancyZones via DSL",
   "Author": "RADiant",
-  "Version": "1.2.0",
+  "Version": "1.5.0",
   "Language": "python",
   "Website": "https://github.com/RADiant-Git/FancyZones-DSL",
   "ExecuteFileName": "main.py",

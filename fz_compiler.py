@@ -12,33 +12,153 @@ class FZCompiler:
     GRID_REGEX = re.compile(r"^(?P<rows>\d+)x(?P<cols>\d+)$")
 
     TEMP_UUID = "{00000000-0000-0000-0000-000000000001}"
+    TEMP_PATTERN = re.compile(r"^\{00000000-0000-0000-0000-(\d{12})\}$")
+
+    @classmethod
+    def temp_uuid_for(cls, slot_num: int) -> str:
+        """Слот Temp для монитора: …0001, …0002, … (по номеру монитора)."""
+        return f"{{00000000-0000-0000-0000-{max(1, int(slot_num)):012d}}}"
+
+    @classmethod
+    def temp_slot(
+        cls, monitor_spec: Any, backend=None
+    ) -> Tuple[str, str]:
+        """
+        (uuid, имя) безымянного слота под целевой монитор.
+        'all' и неизвестный монитор -> общий слот №1 'Temp',
+        монитор N>1 -> персональный слот 'Temp N', чтобы перезапись
+        формулы на одном экране не меняла зоны на других.
+        """
+        num = 1
+        if isinstance(monitor_spec, int):
+            num = max(1, monitor_spec)
+        elif monitor_spec is None and backend is not None:
+            try:
+                monitors = backend.get_monitors()
+                selected = next(
+                    (m for m in monitors if m.get("selected")), None
+                )
+                if selected:
+                    num = max(1, selected["number"])
+            except Exception:
+                pass
+        name = "Temp" if num == 1 else f"Temp {num}"
+        return cls.temp_uuid_for(num), name
+
+    @classmethod
+    def looks_like_dsl(cls, text: str) -> bool:
+        """
+        Эвристика: похож ли ввод на формулу, а не на имя сохраненного макета.
+        Учитывает одиночные блоки '{3:1}', '0(5)', а не только операторы.
+        """
+        if any(c in text for c in "+/|;>{}"):
+            return True
+        tokens = text.split()
+        if not tokens:
+            return False
+        first = tokens[0]
+        return bool(
+            cls.GRID_REGEX.match(first) or cls.BLOCK_REGEX.match(first)
+        )
+
+    @classmethod
+    def _canvas_gap(cls, spacing: int, ref_w: int, ref_h: int) -> Tuple[int, int]:
+        """Отступ в единицах canvas-полотна 10000x10000 для данного разрешения."""
+        if spacing <= 0:
+            return 0, 0
+        sx = int(round(spacing * 10000 / max(1, ref_w)))
+        sy = int(round(spacing * 10000 / max(1, ref_h)))
+        return sx, sy
+
+    @classmethod
+    def extract_flags(
+        cls, raw_input: str, backend=None
+    ) -> Tuple[str, int, Optional[int], Any, Optional[str]]:
+        """
+        Извлекает и валидирует флаги -s/-k/-m из строки.
+        Возвращает (остаток_текста, spacing, hotkey, monitor_spec, ошибка).
+        Работает и для формул, и для имен сохраненных макетов.
+        """
+        text = (raw_input or "").strip()
+        if not text:
+            return "", 16, None, None, None
+
+        spacing = 16
+        hotkey = None
+        monitor_raw = None
+
+        for match in cls.FLAG_REGEX.finditer(text):
+            flag = match.group("flag")
+            val = match.group("val")
+            if flag == "s":
+                if not val.isdigit():
+                    return text, spacing, hotkey, None, (
+                        f"Флаг -s требует целое число пикселей (0..200), "
+                        f"получено '{val}'"
+                    )
+                spacing = int(val)
+                if spacing > 200:
+                    return text, spacing, hotkey, None, (
+                        f"Отступ -s {spacing}px слишком велик (максимум 200)"
+                    )
+            elif flag == "k":
+                if not (val.isdigit() and len(val) == 1):
+                    return text, spacing, hotkey, None, (
+                        f"Флаг -k требует одну цифру 0-9, получено '{val}'"
+                    )
+                hotkey = int(val)
+            elif flag == "m":
+                monitor_raw = val
+
+        text = cls.FLAG_REGEX.sub(" ", text)
+        text = " ".join(text.split()).strip()
+
+        # Осиротевшие флаги без значения или неизвестные
+        for token in text.split():
+            if token.startswith("-") and len(token) > 1 and not token[1:].isdigit():
+                return text, spacing, hotkey, None, (
+                    f"Похоже на флаг '{token}': допустимы только -s/-k/-m "
+                    "со значением"
+                )
+
+        monitor = None
+        if monitor_raw is not None:
+            if backend is not None:
+                monitor, monitor_err = backend.resolve_monitor(monitor_raw)
+                if monitor_err:
+                    return text, spacing, hotkey, None, monitor_err
+            else:
+                t = monitor_raw.strip()
+                if t.lower() in ("all", "*"):
+                    monitor = "all"
+                elif t.isdigit() and int(t) >= 1:
+                    monitor = int(t)
+                else:
+                    return text, spacing, hotkey, None, (
+                        f"Некорректный монитор '{t}': укажите номер >= 1 или 'all'"
+                    )
+
+        return text, spacing, hotkey, monitor, None
 
     @classmethod
     def parse_command(
         cls, raw_input: str, backend=None
     ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
-        """Разбирает команду: <Выражение> [-s px] [-k 0-9] [-m id] [Имя]"""
+        """
+        Разбирает команду: <Выражение> [-s px] [-k 0-9] [-m <монитор>] [Имя]
+        -m: номер монитора (1-based, как у FancyZonesCLI/get-monitors),
+        его имя (подстрока) или 'all'. Без -m — активный монитор.
+        """
         text = raw_input.strip()
         if not text:
             return None, "Пустой запрос"
 
-        # 1. Извлечение флагов (-s, -k, -m)
-        spacing = 16
-        hotkey = None
-        monitor = None
-
-        for match in cls.FLAG_REGEX.finditer(text):
-            flag = match.group("flag")
-            val = match.group("val")
-            if flag == "s" and val.isdigit():
-                spacing = int(val)
-            elif flag == "k" and val in "0123456789":
-                hotkey = int(val)
-            elif flag == "m":
-                monitor = val
-
-        text = cls.FLAG_REGEX.sub(" ", text)
-        text = " ".join(text.split()).strip()
+        # 1. Извлечение и строгая валидация флагов (-s, -k, -m)
+        text, spacing, hotkey, monitor, err = cls.extract_flags(text, backend)
+        if err:
+            return None, err
+        if not text:
+            return None, "Пустой запрос: указана только геометрия или имя"
 
         # 2. Многоуровневый режим (слои через >)
         if ">" in text:
@@ -178,23 +298,45 @@ class FZCompiler:
             mode = parsed["mode"]
             name = parsed["name"]
             spacing = parsed["spacing"]
+            monitor = parsed.get("monitor")
+
+            # Безымянный макет: персональный Temp-слот целевого монитора
+            fixed_uuid = None
+            if name.strip().lower() == "temp":
+                fixed_uuid, name = cls.temp_slot(monitor, backend)
+
+            # Реальное разрешение целевого монитора — для точных отступов canvas
+            ref_w, ref_h = 1920, 1080
+            if backend is not None:
+                try:
+                    ref_w, ref_h = backend.get_spacing_ref(monitor)
+                except Exception:
+                    ref_w, ref_h = 1920, 1080
 
             if mode == "layered":
                 return cls._compile_layered(
-                    parsed["layers"], name, spacing, backend
+                    parsed["layers"], name, spacing, backend,
+                    ref_w, ref_h, monitor, fixed_uuid,
                 )
             elif mode == "columns":
                 return cls._build_flow_layout(
-                    parsed["geom"], name, spacing, is_cols=True
+                    parsed["geom"], name, spacing, is_cols=True,
+                    ref_w=ref_w, ref_h=ref_h, fixed_uuid=fixed_uuid,
                 )
             elif mode == "rows":
                 return cls._build_flow_layout(
-                    parsed["geom"], name, spacing, is_cols=False
+                    parsed["geom"], name, spacing, is_cols=False,
+                    ref_w=ref_w, ref_h=ref_h, fixed_uuid=fixed_uuid,
                 )
             elif mode == "matrix":
-                return cls._build_matrix_layout(parsed["geom"], name, spacing)
+                return cls._build_matrix_layout(
+                    parsed["geom"], name, spacing,
+                    ref_w=ref_w, ref_h=ref_h, fixed_uuid=fixed_uuid,
+                )
             elif mode == "grid":
-                return cls._build_quick_grid(parsed["geom"], name, spacing)
+                return cls._build_quick_grid(
+                    parsed["geom"], name, spacing, fixed_uuid=fixed_uuid
+                )
 
             return None, "Неизвестный режим разметки"
         except Exception as e:
@@ -210,6 +352,10 @@ class FZCompiler:
         inside = match.group(1)
         outer_w_str = match.group("outer_w")
         outer_weight = int(outer_w_str) if outer_w_str else 1
+        if outer_weight < 1:
+            raise ValueError(
+                f"Вес блока '{block_str}' должен быть >= 1"
+            )
 
         sub_items: List[Tuple[int, bool]] = []
 
@@ -229,10 +375,18 @@ class FZCompiler:
                 if val == 0:
                     # Пустота: 0 или 0(w)
                     weight = int(w_str) if w_str else 1
+                    if weight < 1:
+                        raise ValueError(
+                            f"Пустота '{token}' должна иметь вес >= 1"
+                        )
                     sub_items.append((weight, True))
                 else:
                     # Активная зона: val или val(w)
                     weight = int(w_str) if w_str else val
+                    if weight < 1:
+                        raise ValueError(
+                            f"Элемент '{token}' должен иметь вес >= 1"
+                        )
                     sub_items.append((weight, False))
         else:
             count = int(inside)
@@ -246,7 +400,8 @@ class FZCompiler:
 
     @classmethod
     def _build_flow_layout(
-        cls, geom: str, name: str, spacing: int, is_cols: bool
+        cls, geom: str, name: str, spacing: int, is_cols: bool,
+        ref_w: int = 1920, ref_h: int = 1080, fixed_uuid: Optional[str] = None,
     ):
         delimiter = "+" if is_cols else "/"
         raw_blocks = [b.strip() for b in geom.split(delimiter) if b.strip()]
@@ -265,8 +420,7 @@ class FZCompiler:
             canvas_zones = []
             curr_main = Fraction(0, 1)
 
-            sx = int(round(spacing * 10000 / 1920)) if spacing > 0 else 0
-            sy = int(round(spacing * 10000 / 1080)) if spacing > 0 else 0
+            sx, sy = cls._canvas_gap(spacing, ref_w, ref_h)
 
             for sub_items, weight in slices:
                 slice_fraction = Fraction(weight, total_main_weight)
@@ -312,11 +466,7 @@ class FZCompiler:
                         }
                     )
 
-            layout_uuid = (
-                cls.TEMP_UUID
-                if name.strip().lower() == "temp"
-                else f"{{{str(uuid.uuid4()).upper()}}}"
-            )
+            layout_uuid = fixed_uuid or f"{{{str(uuid.uuid4()).upper()}}}"
             summary = f"{'Колонки' if is_cols else 'Строки'} с пустотами: {geom} ({len(canvas_zones)} зон)"
 
             return {
@@ -409,12 +559,16 @@ class FZCompiler:
                 grid,
                 spacing,
                 summary,
+                fixed_uuid=fixed_uuid,
             ),
             None,
         )
 
     @classmethod
-    def _build_matrix_layout(cls, geom: str, name: str, spacing: int):
+    def _build_matrix_layout(
+        cls, geom: str, name: str, spacing: int,
+        ref_w: int = 1920, ref_h: int = 1080, fixed_uuid: Optional[str] = None,
+    ):
         rows_raw = [r.strip().split() for r in re.split(r"[|;]", geom) if r.strip()]
         rows_count = len(rows_raw)
         cols_count = len(rows_raw[0])
@@ -441,6 +595,26 @@ class FZCompiler:
                         char_map[token] = len(char_map)
                     row_ids.append(char_map[token])
             grid.append(row_ids)
+
+        # И FancyZones-grid, и FancyZones-canvas понимают только прямоугольные
+        # зоны: проверяем, что клетки каждого символа образуют прямоугольник.
+        cells: Dict[int, List[Tuple[int, int]]] = {}
+        for r_idx, row in enumerate(grid):
+            for c_idx, z_id in enumerate(row):
+                if z_id >= 0:
+                    cells.setdefault(z_id, []).append((r_idx, c_idx))
+        id_to_symbol = {z_id: sym for sym, z_id in char_map.items()}
+        for z_id, lst in cells.items():
+            min_r = min(p[0] for p in lst)
+            max_r = max(p[0] for p in lst)
+            min_c = min(p[1] for p in lst)
+            max_c = max(p[1] for p in lst)
+            if len(lst) != (max_r - min_r + 1) * (max_c - min_c + 1):
+                sym = id_to_symbol.get(z_id, z_id)
+                raise ValueError(
+                    f"Зона '{sym}' не образует прямоугольник: зоны FancyZones "
+                    "должны быть прямоугольными"
+                )
 
         def equal_pct(count: int) -> List[int]:
             base = 10000 // count
@@ -471,8 +645,7 @@ class FZCompiler:
 
             cell_w = 10000 // cols_count
             cell_h = 10000 // rows_count
-            sx = int(round(spacing * 10000 / 1920)) if spacing > 0 else 0
-            sy = int(round(spacing * 10000 / 1080)) if spacing > 0 else 0
+            sx, sy = cls._canvas_gap(spacing, ref_w, ref_h)
 
             for z_id in sorted(bounds.keys()):
                 b = bounds[z_id]
@@ -491,11 +664,7 @@ class FZCompiler:
                     {"X": x, "Y": y, "width": w, "height": h}
                 )
 
-            layout_uuid = (
-                cls.TEMP_UUID
-                if name.strip().lower() == "temp"
-                else f"{{{str(uuid.uuid4()).upper()}}}"
-            )
+            layout_uuid = fixed_uuid or f"{{{str(uuid.uuid4()).upper()}}}"
             return {
                 "uuid": layout_uuid,
                 "name": name,
@@ -522,13 +691,16 @@ class FZCompiler:
                 grid,
                 spacing,
                 summary,
+                fixed_uuid=fixed_uuid,
             ),
             None,
         )
 
     @classmethod
     def _compile_layered(
-        cls, layers: List[str], name: str, spacing: int, backend
+        cls, layers: List[str], name: str, spacing: int, backend,
+        ref_w: int = 1920, ref_h: int = 1080, monitor_spec: Any = None,
+        fixed_uuid: Optional[str] = None,
     ):
         combined_zones = []
         layer_summaries = []
@@ -541,6 +713,8 @@ class FZCompiler:
             if not layout_data:
                 parsed_sub, err = cls.parse_command(layer_str, backend)
                 if not err and parsed_sub and parsed_sub["mode"] != "layered":
+                    # Наследуем целевой монитор всей команды (учёт -m)
+                    parsed_sub["monitor"] = monitor_spec
                     layout_data, comp_err = cls.compile(parsed_sub, backend)
                     if comp_err:
                         return (
@@ -553,7 +727,7 @@ class FZCompiler:
                         f"Слой '{layer_str}' не найден среди макетов и не является формулой",
                     )
 
-            zones = cls._extract_canvas_zones(layout_data, spacing)
+            zones = cls._extract_canvas_zones(layout_data, spacing, ref_w, ref_h)
             if not zones:
                 return None, f"Слой '{layer_str}' не содержит зон"
 
@@ -561,11 +735,7 @@ class FZCompiler:
             layer_summaries.append(f"{layer_str} ({len(zones)}з)")
 
         summary = f"Холст: {' > '.join(layer_summaries)} (Всего {len(combined_zones)} зон)"
-        layout_uuid = (
-            cls.TEMP_UUID
-            if name.strip().lower() == "temp"
-            else f"{{{str(uuid.uuid4()).upper()}}}"
-        )
+        layout_uuid = fixed_uuid or f"{{{str(uuid.uuid4()).upper()}}}"
 
         return {
             "uuid": layout_uuid,
@@ -582,7 +752,8 @@ class FZCompiler:
 
     @classmethod
     def _extract_canvas_zones(
-        cls, layout: Dict[str, Any], spacing: int
+        cls, layout: Dict[str, Any], spacing: int,
+        ref_w: int = 1920, ref_h: int = 1080,
     ) -> List[Dict[str, int]]:
         l_type = layout.get("type", "grid")
         info = layout.get("info", {})
@@ -625,8 +796,7 @@ class FZCompiler:
                     b["min_c"] = min(b["min_c"], c)
                     b["max_c"] = max(b["max_c"], c)
 
-        sx = int(round(spacing * 10000 / 1920)) if spacing > 0 else 0
-        sy = int(round(spacing * 10000 / 1080)) if spacing > 0 else 0
+        sx, sy = cls._canvas_gap(spacing, ref_w, ref_h)
 
         canvas_zones = []
         for z_id in sorted(bounds.keys()):
@@ -649,7 +819,10 @@ class FZCompiler:
         return canvas_zones
 
     @classmethod
-    def _build_quick_grid(cls, geom: str, name: str, spacing: int):
+    def _build_quick_grid(
+        cls, geom: str, name: str, spacing: int,
+        fixed_uuid: Optional[str] = None,
+    ):
         match = cls.GRID_REGEX.match(geom)
         if not match:
             raise ValueError(f"Неверный формат сетки: '{geom}'")
@@ -683,19 +856,17 @@ class FZCompiler:
                 grid,
                 spacing,
                 summary,
+                fixed_uuid=fixed_uuid,
             ),
             None,
         )
 
     @classmethod
     def _create_fz_json(
-        cls, name, rows, cols, rows_pct, cols_pct, grid, spacing, summary
+        cls, name, rows, cols, rows_pct, cols_pct, grid, spacing, summary,
+        fixed_uuid: Optional[str] = None,
     ):
-        layout_uuid = (
-            cls.TEMP_UUID
-            if name.strip().lower() == "temp"
-            else f"{{{str(uuid.uuid4()).upper()}}}"
-        )
+        layout_uuid = fixed_uuid or f"{{{str(uuid.uuid4()).upper()}}}"
         return {
             "uuid": layout_uuid,
             "name": name,
