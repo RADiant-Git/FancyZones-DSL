@@ -1,7 +1,14 @@
 # FancyZones DSL Tiler
 
+**Русский** · [English](README.md)
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
+[![Flow Launcher](https://img.shields.io/badge/Flow%20Launcher-plugin-8250df.svg)](https://flowlauncher.com)
+[![Build](https://github.com/RADiant-Git/FancyZones-DSL/actions/workflows/publish-release.yml/badge.svg)](https://github.com/RADiant-Git/FancyZones-DSL/actions/workflows/publish-release.yml)
+
 Плагин для [Flow Launcher](https://flowlauncher.com), который собирает раскладки
-[PowerToys FancyZones](https://github.com/microsoft/PowerToys) из коротких текстовых формул.
+[PowerToys FancyZones](https://github.com/microsoft/PowerToys) из коротких текстовых формул:
 
 ```text
 fz 1(3)+2(2) -s 8 Code
@@ -10,7 +17,19 @@ fz 1(3)+2(2) -s 8 Code
 Ввели формулу → `Enter` → раскладка скомпилирована, сохранена в PowerToys и применена к нужному
 монитору. Без окна настроек и мыши.
 
-**Русский** · [English](README.md)
+![Раскладки, которые строит DSL](Images/preview.png)
+
+*Каждая панель отрисована напрямую по выводу `FZCompiler`, поэтому картинка не может разойтись с
+тем, что реально строит плагин.*
+
+## Возможности
+
+- ⌨️ **Только клавиатура** — вся раскладка умещается в одну строку текста.
+- ⚖️ **Пропорции** — `1(3)+2(2)` вместо перетаскивания разделителей мышью.
+- 🕳️ **Пустоты** — свободное место под виджеты или плавающее окно.
+- 🥞 **Слои** — `>` складывает раскладки в один canvas с явным Z-порядком.
+- 🖥️ **Мультимониторность** — `-m 2`, `-m msi` или `-m all`, отступы по реальному разрешению.
+- 🔥 **Хоткеи** — `-k 3` привязывает `Win + Ctrl + Alt + 3`.
 
 ---
 
@@ -196,7 +215,17 @@ python -m unittest discover -v
 python main.py "{\"method\":\"query\",\"parameters\":[\"2x2 -m 1 Test\"]}"
 ```
 
-**Релиз.** Версия берётся из `plugin.json`. Пуш в `main` запускает
+**Картинка раскладок.** `Images/preview.png` не нарисована вручную, а сгенерирована:
+
+```cmd
+pip install Pillow
+python tools/make_previews.py
+```
+
+Показанные формулы лежат в списке `FORMULAS` в начале скрипта, а каждый прямоугольник берётся из
+`FZCompiler` — перезапускайте его после изменений в компиляторе.
+
+**Релизы.** Версия берётся из `plugin.json`. Пуш в `main` запускает
 [`publish-release.yml`](.github/workflows/publish-release.yml): он прогоняет тесты, собирает
 `FancyZonesDSL.zip` и публикует GitHub Release с тегом `v<версия>`. Магазин Flow Launcher сам
 подхватывает новый релиз и обновляет свою запись.

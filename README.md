@@ -1,7 +1,14 @@
 # FancyZones DSL Tiler
 
+**English** · [Русский](README.ru.md)
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
+[![Flow Launcher](https://img.shields.io/badge/Flow%20Launcher-plugin-8250df.svg)](https://flowlauncher.com)
+[![Build](https://github.com/RADiant-Git/FancyZones-DSL/actions/workflows/publish-release.yml/badge.svg)](https://github.com/RADiant-Git/FancyZones-DSL/actions/workflows/publish-release.yml)
+
 A [Flow Launcher](https://flowlauncher.com) plugin that turns short text formulas into
-[PowerToys FancyZones](https://github.com/microsoft/PowerToys) layouts.
+[PowerToys FancyZones](https://github.com/microsoft/PowerToys) layouts:
 
 ```text
 fz 1(3)+2(2) -s 8 Code
@@ -10,7 +17,19 @@ fz 1(3)+2(2) -s 8 Code
 Type the formula → press `Enter` → the layout is compiled, saved into PowerToys and applied to the
 target monitor. No settings window, no mouse.
 
-**English** · [Русский](README.ru.md)
+![Layouts produced by the DSL](Images/preview.png)
+
+*Every panel above is rendered straight from `FZCompiler` output, so the picture cannot drift away
+from what the plugin actually builds.*
+
+## Highlights
+
+- ⌨️ **Keyboard-first** — the whole layout lives in one line of text.
+- ⚖️ **Weights and proportions** — `1(3)+2(2)` instead of dragging dividers.
+- 🕳️ **Voids** — reserve desktop space for widgets or a floating window.
+- 🥞 **Layers** — `>` stacks layouts into one canvas with explicit Z-order.
+- 🖥️ **Multi-monitor** — `-m 2`, `-m msi` or `-m all`, gaps matched to the real resolution.
+- 🔥 **Hotkeys** — `-k 3` binds `Win + Ctrl + Alt + 3`.
 
 ---
 
@@ -192,6 +211,16 @@ The plugin speaks the same JSON-RPC as Flow Launcher, so you can run it directly
 ```cmd
 python main.py "{\"method\":\"query\",\"parameters\":[\"2x2 -m 1 Test\"]}"
 ```
+
+**Layout preview.** `Images/preview.png` is generated rather than drawn by hand:
+
+```cmd
+pip install Pillow
+python tools/make_previews.py
+```
+
+The showcased formulas live in the `FORMULAS` list at the top of the tool, and each rectangle is
+taken from `FZCompiler`, so re-run it after changing the compiler.
 
 **Releases.** The version comes from `plugin.json`. A push to `main` triggers
 [`publish-release.yml`](.github/workflows/publish-release.yml), which runs the tests, builds

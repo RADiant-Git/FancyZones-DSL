@@ -70,13 +70,13 @@ jobs:
             LICENSE \
             README.md \
             README.ru.md \
-            Images \
+            Images/app.png \
             lib \
             -x '*/__pycache__/*' '*.pyc' '*.pyo'
 
       - name: Verify zip layout
         run: |
-          python -c "import json, zipfile; z = zipfile.ZipFile('${{ env.PLUGIN_ARCHIVE }}.zip'); names = z.namelist(); assert 'plugin.json' in names, names; assert 'main.py' in names, names; assert any(n.startswith('lib/flowlauncher/') for n in names), 'vendored lib/flowlauncher is missing'; json.loads(z.read('plugin.json')); print('zip layout OK')"
+          python -c "import json, zipfile; z = zipfile.ZipFile('${{ env.PLUGIN_ARCHIVE }}.zip'); names = z.namelist(); assert 'plugin.json' in names, names; assert 'main.py' in names, names; assert 'Images/app.png' in names, names; assert not any(n.startswith('Images/preview') for n in names), 'documentation artwork leaked into the plugin'; assert any(n.startswith('lib/flowlauncher/') for n in names), 'vendored lib/flowlauncher is missing'; json.loads(z.read('plugin.json')); print('zip layout OK')"
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
