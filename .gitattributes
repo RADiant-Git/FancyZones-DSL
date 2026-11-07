@@ -1,0 +1,21 @@
+# Normalize all text files to LF inside the repository.
+# Checkout line endings follow the local core.autocrlf / core.eol setting,
+# so Windows contributors keep CRLF in their working tree while the
+# repository (and the Linux-built release zip) stays LF-clean.
+* text=auto
+
+# Windows-only helper scripts should always be checked out as CRLF.
+*.cmd  text eol=crlf
+*.bat  text eol=crlf
+*.ps1  text eol=crlf
+
+# Vendored third-party package: keep it out of GitHub language statistics.
+lib/** linguist-vendored
+
+# Binary assets
+*.png  binary
+*.ico  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.zip  binary

@@ -1,0 +1,87 @@
+name: Publish Release
+
+# Builds the Flow Launcher release zip and publishes it as a GitHub Release.
+# Flow Launcher's plugin store watches this repository: it downloads the zip
+# from the latest release, reads plugin.json from inside it and refreshes the
+# store entry automatically (Version, Description, Author, Language, Website).
+#
+# Release asset name is intentionally version-less ("FancyZonesDSL.zip") so the
+# download URL stays stable across versions.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '.github/**'
+      - '**/*.md'
+      - 'LICENSE'
+      - '.gitignore'
+      - '.gitattributes'
+      - 'store/**'
+
+permissions:
+  contents: write
+
+env:
+  PLUGIN_ARCHIVE: FancyZonesDSL
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  publish:
+    name: Test, build and publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # requirements.txt is pinned to flowlauncher==0.2.0, the same version
+      # vendored in ./lib, so the release zip is byte-for-byte reproducible.
+      - name: Install dependencies into lib/
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -t ./lib
+
+      - name: Run unit tests
+        run: python -m unittest discover -v
+
+      - name: Read version from plugin.json
+        id: version
+        run: |
+          version="$(python -c "import json; print(json.load(open('plugin.json'))['Version'])")"
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+          echo "Building release v$version"
+
+      - name: Build release zip
+        run: |
+          find . -name '__pycache__' -type d -prune -exec rm -rf {} +
+          zip -r "${{ env.PLUGIN_ARCHIVE }}.zip" \
+            plugin.json \
+            main.py \
+            fz_backend.py \
+            fz_compiler.py \
+            requirements.txt \
+            LICENSE \
+            README.md \
+            README.ru.md \
+            Images \
+            lib \
+            -x '*/__pycache__/*' '*.pyc' '*.pyo'
+
+      - name: Verify zip layout
+        run: |
+          python -c "import json, zipfile; z = zipfile.ZipFile('${{ env.PLUGIN_ARCHIVE }}.zip'); names = z.namelist(); assert 'plugin.json' in names, names; assert 'main.py' in names, names; assert any(n.startswith('lib/flowlauncher/') for n in names), 'vendored lib/flowlauncher is missing'; json.loads(z.read('plugin.json')); print('zip layout OK')"
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.PLUGIN_ARCHIVE }}.zip
+          tag_name: v${{ steps.version.outputs.value }}
+          name: v${{ steps.version.outputs.value }}
+          generate_release_notes: true

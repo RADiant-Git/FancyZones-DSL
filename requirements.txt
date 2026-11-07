@@ -1,1 +1,1 @@
-flowlauncher
+flowlauncher==0.2.0

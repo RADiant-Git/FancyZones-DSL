@@ -1,7 +1,50 @@
 # ========================================================
-# Visual Studio / VS Code
+#  Python bytecode and caches
+# ========================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# ========================================================
+#  Virtual environments
+# ========================================================
+.venv/
+venv/
+env/
+ENV/
+
+# NOTE: ./lib is intentionally tracked in this repository.
+# It holds the vendored `flowlauncher` package so the release zip
+# works out of the box with Flow Launcher's embedded Python.
+# Uncomment the line below only if you switch to runtime pip installs.
+# /lib/
+
+# ========================================================
+#  Logs and runtime artifacts
+# ========================================================
+*.log
+plugin.log
+*.tmp
+*.bak
+
+# ========================================================
+#  Release build output
+# ========================================================
+dist/
+build/
+*.egg-info/
+FancyZonesDSL*.zip
+
+# ========================================================
+#  Editors and IDEs
 # ========================================================
 .vs/
+.vscode/
+.idea/
 *.suo
 *.user
 *.userosscache
@@ -10,39 +53,8 @@ slnx.sqlite
 VSWorkspaceState.json
 ProjectSettings.json
 
-# VS Code / JetBrains Rider / PyCharm
-.vscode/
-.idea/
-
 # ========================================================
-# Байткод и кэш Python (включая папку lib/)
-# ========================================================
-__pycache__/
-*.py[cod]
-*$py.class
-*.pyd
-
-# ========================================================
-# Зависимости и виртуальные окружения
-# ========================================================
-.venv/
-venv/
-env/
-ENV/
-
-# Раскомментируйте строчку ниже, если НЕ хотите хранить
-# сторонние пакеты в git (а ставить через requirements.txt):
-# /lib/
-
-# ========================================================
-# Логи и временные файлы
-# ========================================================
-*.log
-*.tmp
-*.bak
-
-# ========================================================
-# Системные файлы Windows / macOS
+#  OS metadata
 # ========================================================
 Thumbs.db
 Desktop.ini

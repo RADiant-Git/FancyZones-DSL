@@ -1,0 +1,12 @@
+{
+  "ID": "E9A1F3C4-7B2A-4D35-9C8E-2B6A1A78B091",
+  "Name": "FancyZones DSL Tiler",
+  "Description": "Fast keyboard-driven tiling for PowerToys FancyZones via DSL",
+  "Author": "RADiant",
+  "Version": "1.5.0",
+  "Language": "python",
+  "Website": "https://github.com/RADiant-Git/FancyZones-DSL",
+  "UrlDownload": "https://github.com/RADiant-Git/FancyZones-DSL/releases/download/v1.5.0/FancyZonesDSL.zip",
+  "UrlSourceCode": "https://github.com/RADiant-Git/FancyZones-DSL",
+  "IcoPath": "https://cdn.jsdelivr.net/gh/RADiant-Git/FancyZones-DSL@main/Images/app.png"
+}

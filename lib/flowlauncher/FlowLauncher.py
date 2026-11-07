@@ -3,8 +3,7 @@
 
 import inspect
 import sys
-
-import json
+from json import loads, dumps
 
 
 class FlowLauncher:
@@ -16,8 +15,12 @@ class FlowLauncher:
 
         # defalut jsonrpc
         self.rpc_request = {'method': 'query', 'parameters': ['']}
-        if len(sys.argv) > 1:  # from input to get jsonrpc
-            self.rpc_request = json.loads(sys.argv[1])
+        self.debugMessage = ""
+        
+        if len(sys.argv) > 1:
+            
+            # Gets JSON-RPC from Flow Launcher process.
+            self.rpc_request = loads(sys.argv[1])
 
         # proxy is not working now
         # self.proxy = self.rpc_request.get("proxy", {})
@@ -30,7 +33,10 @@ class FlowLauncher:
         results = request_method(*request_parameters)
 
         if request_method_name in ("query", "context_menu"):
-            print(json.dumps({"result": results}))
+            print(dumps({
+                "result": results,
+                "debugMessage": self.debugMessage
+            }))
 
     def query(self, param: str = '') -> list:
         """
@@ -48,5 +54,4 @@ class FlowLauncher:
         """
         alert msg
         """
-        print(f"DEBUG:{msg}")
-        sys.exit()
+        self.debugMessage = msg
